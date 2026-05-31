@@ -157,8 +157,8 @@ if __name__ == "__main__":
     )
 
     for leaderboard, fetch_users in [
-        (Leaderboard.GLOBAL, fetch_global_leaderboard),
-        (Leaderboard.MONTHLY, fetch_monthly_leaderboard)
+        (Leaderboard.MONTHLY, fetch_monthly_leaderboard),
+        (Leaderboard.GLOBAL, fetch_global_leaderboard)
     ]:
         start = time.time()
         logger.info("Fetching %s users", leaderboard.value)
