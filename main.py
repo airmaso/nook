@@ -1,5 +1,5 @@
-import sys
+from ui.app import Nook
 
 if __name__ == "__main__":
-    print(__name__)
-    sys.exit(0)
+    app = Nook()
+    app.mainloop()
