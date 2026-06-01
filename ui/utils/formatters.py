@@ -27,8 +27,8 @@ def time_gap(seconds: float) -> str:
 
     return time_string
 
-if __name__ == "__main__":
-    year = 365 * 24 * 3600
+def seconds(sec: float) -> str:
+    return f"{format_large(sec)}s"
 
-    for i in range(0, 79999, 643):
-        print(time_gap(year + i))
+def percent(pct: float) -> str:
+    return f"{format_large(pct)}%"
