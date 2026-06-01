@@ -1,10 +1,16 @@
 import tkinter as tk
+
 import ui.config as config
+from ui.api.client import NookApi
 
 
 class Nook(tk.Tk):
-    def __init__(self):
+    api: NookApi
+
+    def __init__(self, api: NookApi):
         super().__init__()
+
+        self.api = api
 
         self._setup()  # can't use _configure due to tk internals
 
