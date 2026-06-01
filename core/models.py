@@ -1,6 +1,6 @@
-from enum import Enum
-from dataclasses import dataclass
 import datetime as dt
+from dataclasses import dataclass
+from enum import Enum
 
 class Leaderboard(Enum):
     MONTHLY = "monthly"
@@ -25,6 +25,19 @@ class User:
         total_points = f"{'{:,} {}'.format(self.total_points, 'pts'):<15}"
 
         return f"{rank} {username} {total_points}"
+
+    @property
+    def row_values(self) -> tuple[str]:
+        u = self
+        return (
+            f"#{u.rank}",
+            f"{u.username}",
+            f"{u.total_points:,}",
+            f"{u.solved}/{u.attempted}",
+            f"{u.average_time:.2f}s",
+            f"{u.acceptance_rate:.2f}%"
+        )
+
 
 if __name__ == "__main__":
     airmaso = User(
