@@ -65,6 +65,8 @@ def _get_additional_data(uid: int) -> list[list[str]] | None:
 
 
 def fetch_global_leaderboard() -> list[User | None]:
+    # global users is generally fixed, so we can use a fixed-size list
+    # this is not the case for monthly users due to leaderboard refreshes
     global_users: list[User | None] = [None] * 101
     failed = threading.Event()  # shared error flag
 
@@ -117,7 +119,8 @@ def fetch_global_leaderboard() -> list[User | None]:
 
 
 def fetch_monthly_leaderboard() -> list[User | None]:
-    monthly_users: list[User | None] = [None] * 101
+    # monthly_users: list[User | None] = [None] * 101  # dangerous on monthly refreshes
+    monthly_users: list[User | None] = [None]  # initial sentinel user
     data = _get_leaderboard_data(Leaderboard.MONTHLY)
 
     if data is None:
@@ -137,12 +140,12 @@ def fetch_monthly_leaderboard() -> list[User | None]:
         avg_points          = p.avg_points(avg_points)
         total_points        = p.total_points(total_points)
 
-        monthly_users[rank] = User(
+        monthly_users.append(User(
             uid=uid, rank=rank, username=username,
             last_active=last_active, solved=solved, attempted=attempted,
             acceptance_rate=acceptance_rate, average_time=avg_time,
             average_points=avg_points, total_points=total_points
-        )
+        ))
 
     return monthly_users
 
