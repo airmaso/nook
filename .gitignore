@@ -1,0 +1,7 @@
+.env
+.env.example
+.vscode
+
+# legacy code
+ui/api/_client.py
+data/cache.py
