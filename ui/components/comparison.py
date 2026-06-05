@@ -17,10 +17,13 @@ class _NookSelector(NookFrame):
     _label:    NookLabel
     _variable: tk.StringVar
     _combobox: ttk.Combobox
+    _on_change: callable
 
-    def __init__(self, parent: tk.Widget, label: str):
+    def __init__(self, parent: tk.Widget, label: str, on_change: callable):
         t = get_root(parent).theme
         super().__init__(parent)
+
+        self._on_change = on_change
 
         NookLabel(self, text=label).pack(anchor="w")
         self._variable = tk.StringVar()
@@ -28,10 +31,26 @@ class _NookSelector(NookFrame):
             textvariable=self._variable,
             state="readonly",
             font=t.fonts.ui(),
-            style="nook.TCombobox"                              
+            style="nook.TCombobox"                       
         )
-        t.style_combobox(self._combobox)
 
+        # handles bug when up/down buttons are used and selection length doesn't change
+        self._combobox.bind("<<ComboboxSelected>>", lambda e: self._combobox.selection_clear())
+        self._variable.trace_add("write", lambda *_: self._combobox.selection_clear())
+
+        ttk.Button(self,
+            text=config.BUTTON_UP,
+            command=self._increase_current,
+            style="nook.TButton"
+        ).pack(side=tk.RIGHT)
+
+        ttk.Button(self, 
+            text=config.BUTTON_DOWN,
+            command=self._decrease_current,
+            style="nook.TButton"
+        ).pack(side=tk.RIGHT)
+
+        t.style_combobox(self._combobox)
         self._combobox.pack(fill=tk.X)
         self.pack(fill=tk.X)
 
@@ -44,22 +63,39 @@ class _NookSelector(NookFrame):
     def set_current(self, index: int):
         self._combobox.current(index)
 
+    def _increase_current(self):
+        max_index = len(self._combobox["values"]) - 1
+        curr_index = self.get_current()
+
+        # can only increase if index is not the last one
+        if curr_index < max_index:
+            self.set_current(min(max_index, self.get_current() + 1))
+            self._on_change()
+
+    def _decrease_current(self):
+        curr_index = self.get_current()
+
+        # can only decrease if index is not 0th one
+        if 0 < curr_index:
+            self.set_current(max(0, self.get_current() - 1))
+            self._on_change()
+
 
 class _NookSelection(NookFrame):
     _selector_a: _NookSelector
     _selector_b: _NookSelector
 
-    def __init__(self, parent: tk.Widget):
+    def __init__(self, parent: tk.Widget, on_change: callable):
         super().__init__(parent)
-        self._build()
+        self._on_change = on_change
+        self._build(on_change)
 
-    def _build(self):
+    def _build(self, on_change: callable):
         t = get_root(self).theme
 
         NookHeaderLabel(self, text=config.COMPARISON_TEXT).pack(anchor="w")
-
-        self._selector_a = _NookSelector(self, label=config.SELECTION_U1)
-        self._selector_b = _NookSelector(self, label=config.SELECTION_U2)
+        self._selector_a = _NookSelector(self, label=config.SELECTION_U1, on_change=on_change)
+        self._selector_b = _NookSelector(self, label=config.SELECTION_U2, on_change=on_change)
 
     def set_users(self, users: list[User]):
         choices = [f"#{u.rank} {u.username}" for u in users[1:]]
@@ -232,7 +268,7 @@ class NookComparison(NookFrame):
     def _build(self):
         t = get_root(self).theme
 
-        self._selection = _NookSelection(self)
+        self._selection = _NookSelection(self, on_change=self._on_compare)
         self._selection.pack(fill=tk.X)
 
         compare = NookActionLabel(self, text=config.BUTTON_COMPARE)

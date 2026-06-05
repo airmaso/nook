@@ -6,6 +6,8 @@ APP_HEADER       = "Nook"
 
 BUTTON_REFRESH = "Refresh"
 BUTTON_COMPARE = "Compare"
+BUTTON_UP      = "↑"
+BUTTON_DOWN    = "↓"
 
 STATUS_LOADING = "Loading..."
 STATUS_SUCCESS = "{n} players loaded"

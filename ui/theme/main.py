@@ -22,6 +22,7 @@ class Theme:
         self._configure_notebook_styles()
         self._configure_treeview_styles()
         self._configure_combobox_styles()
+        self._configure_button_styles()
 
         self._apply_custom_options()
         self.style.configure("TSeparator", background=self.palette.border)
@@ -176,6 +177,35 @@ class Theme:
         #     "-darkcolor",    c.surface2,
         #     "-arrowcolor",   c.accent,
         #     "-relief",       "flat")
+
+    def _configure_button_styles(self):
+        c, f = self.palette, self.fonts
+
+        self.style.configure(
+            "nook.TButton",
+            background=c.surface2,
+            foreground=c.accent,
+            font=f.ui(),
+            padding=(8, 1.25),  # (horizontal, vertical) — kills extra vertical padding,
+            width=2
+        )
+
+        # self.style.map(
+        #     "nook.TButton",
+        #     background=[("active", c.surface2), ("pressed", c.surface2)],
+        #     foreground=[("active", c.accent),   ("pressed", c.accent)],
+        # )
+
+        # gets rid of focus border on button click
+        self.style.layout("nook.TButton",
+            [("Button.border", {"sticky": "nswe", "children":
+                [("Button.padding", {"sticky": "nswe", "children":
+                    #[("Button.focus", {"sticky": "nswe", "children":
+                        [("Button.label", {"sticky": "nswe"})],
+                    #})],
+                })],
+            })]
+        )
 
     def style_combobox(self, cb: ttk.Combobox):
         # styles <cb>'s scrollbar
