@@ -3,20 +3,20 @@ import tkinter.ttk as ttk
 
 import ui.config as config
 from core.models import Leaderboard
-from ui.api.client import NookApi
+from ui.api.client import NookAPI
 from ui.base.frames import NookFrame
 from ui.tabs.leaderboard import NookLeaderboardTab
 from ui.theme.main import Theme, DEFAULT_THEME
 
 
 class Nook(tk.Tk):
-    api:         NookApi
+    api:         NookAPI
     theme:       Theme
     notebook:    ttk.Notebook
     monthly_tab: NookFrame
     global_tab:  NookFrame
 
-    def __init__(self, api: NookApi, theme: Theme = DEFAULT_THEME):
+    def __init__(self, api: NookAPI, theme: Theme = DEFAULT_THEME):
         super().__init__()
 
         self.api = api

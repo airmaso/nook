@@ -26,3 +26,6 @@ STAT_TIME_GAP   = "to close gap"
 
 ERR_API_INVALID_TYPE = "Unknown leaderboard type: {type}"
 ERR_API_CONNECTION = "Couldn't establish connection to Nook API"
+ERR_API_RATE_LIMITED = "Rate limited by API"
+
+API_RATE_LIMIT_THRESHOLD_MS = 500
