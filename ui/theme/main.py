@@ -208,9 +208,15 @@ class Theme:
         )
 
     def style_combobox(self, cb: ttk.Combobox):
-        # styles <cb>'s scrollbar
-        self.style.master.tk.eval("set cb [ttk::combobox::PopdownWindow %s]" % cb)
-        self.style.master.tk.eval("$cb.f.sb configure -style nook.TCombobox.Vertical.TScrollbar")
+        """
+        Attempts to apply custom styles to a combobox
+        """
+
+        try:
+            self.style.master.tk.eval("set cb [ttk::combobox::PopdownWindow %s]" % cb)
+            self.style.master.tk.eval("$cb.f.sb configure -style nook.TCombobox.Vertical.TScrollbar")
+        except Exception:
+            pass  # the tk version doesn't support these evals
 
     def _apply_custom_options(self):
         c, f = self.palette, self.fonts
