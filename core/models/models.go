@@ -12,6 +12,17 @@ const (
 	GlobalLeaderboard
 )
 
+func (lb Leaderboard) String() string {
+	switch lb {
+	case MonthlyLeaderboard:
+		return "MonthlyLeaderboard"
+	case GlobalLeaderboard:
+		return "GlobalLeaderboard"
+	default:
+		return fmt.Sprintf("Leaderboard(%d)", int(lb))
+	}
+}
+
 type User struct {
 	UID            int
 	Rank           int
