@@ -28,23 +28,25 @@ const (
 // If the leaderboard is monthly, each row is structured as:
 //
 //	[]string{
-//	  uid,
-//	  monthlyRank,
-//	  lastActive,
-//	  monthlySolved,
-//	  monthlyRate,
-//	  monthlyAvgTime,
-//	  monthlyAvgPoints,
-//	  monthlyTotalPoints,
+//		uid,
+//		monthlyRank,
+//		username,
+//		lastActive,
+//		monthlySolvedFraction,
+//		monthlyRate,
+//		monthlyAvgTime,
+//		monthlyAvgPoints,
+//		monthlyTotalPoints,
 //	}
 //
 // If the leaderboard is global, each row is structured as:
 //
 //	[]string{
-//	  uid,
-//	  globalRank,
-//	  lastGame,
-//	  lifetimePoints,
+//		uid,
+//		globalRank,
+//		username,
+//		lastGame,
+//		lifetimePoints,
 //	}
 func GetLeaderboardTextDataV1(lb models.Leaderboard) ([][]string, error) {
 	url := MonthlyLeaderboardURL
@@ -88,7 +90,7 @@ func GetLeaderboardTextDataV1(lb models.Leaderboard) ([][]string, error) {
 			// Append each text column
 			rowData = append(rowData, td.Text())
 
-			// Extract the uid
+			// Extract the UID
 			if link := td.Find("a"); link.Length() != 0 {
 				if href, exists := link.Attr("href"); exists {
 					if _, uid, found := strings.Cut(href, "?u="); found {
@@ -117,7 +119,7 @@ func GetLeaderboardTextDataV1(lb models.Leaderboard) ([][]string, error) {
 //	  uid,
 //	  monthlyRank,
 //	  lastActive,
-//	  monthlySolved,
+//	  monthlySolvedFraction,
 //	  monthlyRate,
 //	  monthlyAvgTime,
 //	  monthlyAvgPoints,

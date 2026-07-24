@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"nook/core/models"
@@ -35,7 +36,11 @@ func main() {
 
 		// New scrape benchmark
 		start = time.Now()
-		newScrape(leaderboard)
+		data, err := newScrape(leaderboard)
+		if err != nil {
+			panic("newScrape failed")
+		}
+
 		newScrapeTime := time.Since(start)
 
 		diff := oldScrapeTime - newScrapeTime
@@ -46,6 +51,12 @@ func main() {
 		fmt.Printf("New scrape: %vms\n", newScrapeTime.Milliseconds())
 		fmt.Printf("  + Improvement: %vms\n", diff.Milliseconds())
 		fmt.Printf("  + Throughput: %vx\n", math.Round(mult*ratio)/ratio)
+
+		fmt.Println()
+
+		for _, row := range data {
+			fmt.Println(strings.Join(row, "|"))
+		}
 
 		fmt.Println()
 	}
