@@ -38,6 +38,9 @@ func getCachedLeaderboard(cache *LeaderboardCache, lb models.Leaderboard) (*Cach
 
 // Returns the previously fetched users of a leaderboard
 func (cache *LeaderboardCache) GetPrevUsers(lb models.Leaderboard) ([]*models.User, error) {
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
 	cachedLeaderboard, err := getCachedLeaderboard(cache, lb)
 	if err != nil {
 		return nil, err
@@ -69,9 +72,9 @@ func (cache *LeaderboardCache) GetPrevUser(lb models.Leaderboard, rank int) (*mo
 		return nil, err
 	}
 
-	if rank <= 0 || rank > len(cachedLeaderboard.curr) {
+	if rank <= 0 || rank > len(cachedLeaderboard.prev) {
 		return nil, fmt.Errorf(
-			"rank %d not in range [1, %d]", rank, len(cachedLeaderboard.curr),
+			"rank %d not in range [1, %d]", rank, len(cachedLeaderboard.prev),
 		)
 	}
 
