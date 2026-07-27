@@ -3,6 +3,7 @@ package scraper
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -12,154 +13,69 @@ import (
 )
 
 const (
-	// All-time rankings leaderboard page
-	GlobalLeaderboardURL = "https://starbattle.puzzlebaron.com/halloffame.php"
-
-	// Monthly competition leaderboard page
-	MonthlyLeaderboardURL = "https://starbattle.puzzlebaron.com/contest1.php"
-
-	// Lifetime player solving statistics page
-	PlayerProfileURL = "https://starbattle.puzzlebaron.com/profile.php?u=%s"
+	globalLeaderboardURL  = "https://starbattle.puzzlebaron.com/halloffame.php"
+	monthlyLeaderboardURL = "https://starbattle.puzzlebaron.com/contest1.php"
+	playerProfileURL      = "https://starbattle.puzzlebaron.com/profile.php?u=%s"
 )
 
-// Extracts and returns the text content from a leaderboard table.
-// Preserves rank order by processing the leaderboard iteratively (top-down).
-//
-// If the leaderboard is monthly, each row is structured as:
-//
-//	[]string{
-//		uid,
-//		monthlyRank,
-//		username,
-//		lastActive,
-//		monthlySolvedFraction,
-//		monthlyRate,
-//		monthlyAvgTime,
-//		monthlyAvgPoints,
-//		monthlyTotalPoints,
-//	}
-//
-// If the leaderboard is global, each row is structured as:
-//
-//	[]string{
-//		uid,
-//		globalRank,
-//		username,
-//		lastGame,
-//		lifetimePoints,
-//	}
-func GetLeaderboardTextDataV1(lb models.Leaderboard) ([][]string, error) {
-	url := MonthlyLeaderboardURL
-	if lb == models.GlobalLeaderboard {
-		url = GlobalLeaderboardURL
-	}
+// Raw leaderboard row text data
+type rawLeaderboardRow struct {
+	profileHref string   // link to user profile
+	cols        []string // leaderboard columns
+}
 
-	response, err := http.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("Fetching leaderboard: %w", err)
-	}
-	defer response.Body.Close()
+// Monthly row text data
+type monthlyLeaderboardRow struct {
+	profileHref    string
+	rank           string
+	username       string
+	lastActive     string
+	solvedFraction string
+	rate           string
+	avgTime        string
+	avgPoints      string
+	totalPoints    string
+}
 
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Unexpected status: %d", response.StatusCode)
-	}
-
-	doc, err := goquery.NewDocumentFromReader(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("Failure parsing response body")
-	}
-
-	dataRows := doc.Find("table.winners tbody tr")
-	if dataRows == nil {
-		return nil, fmt.Errorf("No data rows found")
-	}
-
-	var textData [][]string
-
-	// Iterate over each row of the leaderboard table
-	dataRows.Each(func(rowIndex int, row *goquery.Selection) {
-		// Skip the header row
-		if rowIndex == 0 {
-			return
-		}
-
-		rowData := []string{}
-
-		// Iterate over each column of this row
-		row.Find("td").Each(func(colIndex int, td *goquery.Selection) {
-			// Append each text column
-			rowData = append(rowData, td.Text())
-
-			// Extract the UID
-			if link := td.Find("a"); link.Length() != 0 {
-				if href, exists := link.Attr("href"); exists {
-					if _, uid, found := strings.Cut(href, "?u="); found {
-						rowData = append([]string{uid}, rowData...)
-					}
-				}
-				// fmt.Printf("[@%v] %v\n", link.Text(), href)
-			}
-		})
-
-		// Append the row data to the bulk table data
-		textData = append(textData, rowData)
-	})
-
-	return textData, nil
+// Global row text data
+type globalLeaderboardRow struct {
+	profileHref string
+	rank        string
+	username    string
+	lastGame    string
+	totalPoints string
 }
 
 // Extracts and returns the text content from a leaderboard table.
-// Improves upon [GetLeaderboardTextDataV1] by processing rows concurrently
-// with goroutines, writing each row to a preallocated slice to preserve
-// rank order without explicit synchronization overhead.
 //
-// If the leaderboard is monthly, each row is structured as:
-//
-//	[]string{
-//	  uid,
-//	  monthlyRank,
-//	  lastActive,
-//	  monthlySolvedFraction,
-//	  monthlyRate,
-//	  monthlyAvgTime,
-//	  monthlyAvgPoints,
-//	  monthlyTotalPoints,
-//	}
-//
-// If the leaderboard is global, each row is structured as:
-//
-//	[]string{
-//	  uid,
-//	  globalRank,
-//	  lastGame,
-//	  lifetimePoints,
-//	}
-func GetLeaderboardTextDataV2(lb models.Leaderboard) ([][]string, error) {
-	url := MonthlyLeaderboardURL
+// Processes rows concurrently with goroutines, writing each to a preallocated
+// slice to preserve rank order without explicit synchronization overhead.
+func getLeaderboardText(lb models.Leaderboard) ([]rawLeaderboardRow, error) {
+	url := monthlyLeaderboardURL
 	if lb == models.GlobalLeaderboard {
-		url = GlobalLeaderboardURL
+		url = globalLeaderboardURL
 	}
 
 	response, err := http.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("Fetching leaderboard: %w", err)
+		return nil, fmt.Errorf("fetching %q: %w", url, err)
 	}
 	defer response.Body.Close()
 
 	// Parse response body
 	doc, err := goquery.NewDocumentFromReader(response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Failure parsing response body")
+		return nil, fmt.Errorf("parsing response body")
 	}
 
 	// Find all leaderboard table rows
 	rows := doc.Find("table.winners tbody tr")
 
-	// Preallocated so each goroutine can write directly to textData[rowIndex-1],
+	// Preallocated so each goroutine can write directly to data[rowIndex-1],
 	// preservering rank order without relying on completion order
 	// No mutex/channel needed: concurrent writes to distinct slice indices are
-	// race-free since each goroutine only touches its own memory location (&textData[rowIndex-1])
-	textData := make([][]string, rows.Length()-1)
+	// race-free since each goroutine only touches its own memory location (&data[rowIndex-1])
+	data := make([]rawLeaderboardRow, rows.Length()-1)
 	var wg sync.WaitGroup
 
 	// Concurrently process each row
@@ -171,29 +87,161 @@ func GetLeaderboardTextDataV2(lb models.Leaderboard) ([][]string, error) {
 
 		// Process this row in it's own goroutine
 		wg.Go(func() {
-			// Extract and collect the column text from this row
-			var cols []string
+			// Extract the column text of this row
 			row.Find("td").Each(func(colIndex int, td *goquery.Selection) {
-				cols = append(cols, strings.TrimSpace(td.Text()))
+				data[rowIndex-1].cols = append(
+					data[rowIndex-1].cols,
+					strings.TrimSpace(td.Text()),
+				)
 
-				// Extract the uid
+				// Extract the profile link (if it exists)
 				if link := td.Find("a"); link.Length() != 0 {
 					if href, exists := link.Attr("href"); exists {
-						if _, uid, found := strings.Cut(href, "?u="); found {
-							cols = append([]string{uid}, cols...)
-						}
+						data[rowIndex-1].profileHref = href
 					}
-					// fmt.Printf("[@%v] %v\n", link.Text(), href)
 				}
 			})
-
-			// Each goroutine writes to its own index
-			textData[rowIndex-1] = cols
 		})
 	})
 
 	// Block until all goroutines finish
 	wg.Wait()
 
-	return textData, nil
+	return data, nil
+}
+
+// Adapts [rawLeaderboardRow] into [monthlyLeaderboardRow]
+func (row rawLeaderboardRow) Monthly() (monthlyLeaderboardRow, error) {
+	expectedCols := 8
+	if len(row.cols) != expectedCols {
+		return monthlyLeaderboardRow{}, fmt.Errorf(
+			"expected %d columns, got %d", expectedCols, len(row.cols),
+		)
+	}
+
+	return monthlyLeaderboardRow{
+		profileHref:    row.profileHref,
+		rank:           row.cols[0],
+		username:       row.cols[1],
+		lastActive:     row.cols[2],
+		solvedFraction: row.cols[3],
+		rate:           row.cols[4],
+		avgTime:        row.cols[5],
+		avgPoints:      row.cols[6],
+		totalPoints:    row.cols[7],
+	}, nil
+}
+
+// Adapts [rawLeaderboardRow] into [globalLeaderboardRow]
+func (row rawLeaderboardRow) Global() (globalLeaderboardRow, error) {
+	expectedCols := 4
+	if len(row.cols) != expectedCols {
+		return globalLeaderboardRow{}, fmt.Errorf(
+			"expected %d columns, got %d", expectedCols, len(row.cols),
+		)
+	}
+
+	return globalLeaderboardRow{
+		profileHref: row.profileHref,
+		rank:        row.cols[0],
+		username:    row.cols[1],
+		lastGame:    row.cols[2],
+		totalPoints: row.cols[3],
+	}, nil
+}
+
+type rawLifetimeRow struct {
+	cols []string
+}
+
+type lifetimeRow struct {
+	memberSince string
+	totalPoints string
+	attempted   string
+	solved      string
+	successRate string
+	avgPoints   string
+	avgTime     string
+}
+
+func getLifetimeStatsText(uid int) (rawLifetimeRow, error) {
+	profileURL := fmt.Sprintf(playerProfileURL, strconv.Itoa(uid))
+	response, err := http.Get(profileURL)
+
+	if err != nil {
+		return rawLifetimeRow{}, fmt.Errorf("GET %q: %w", profileURL, err)
+	}
+	defer response.Body.Close()
+
+	doc, err := goquery.NewDocumentFromReader(response.Body)
+	if err != nil {
+		return rawLifetimeRow{}, fmt.Errorf("")
+	}
+
+	// Find the lifetime statistic table
+	table := doc.Find("div#tabs-1 table")
+	if table.Length() != 1 {
+		return rawLifetimeRow{}, fmt.Errorf(
+			"finding lifetime table for UID %d", uid,
+		)
+	}
+
+	// Extract rows
+	rows := table.Find("tbody tr")
+	if rows.Length() == 0 {
+		return rawLifetimeRow{}, fmt.Errorf(
+			"finding lifetime table rows for UID %d", uid,
+		)
+	}
+
+	// Extract table data
+	var data rawLifetimeRow
+	rows.Each(func(index int, row *goquery.Selection) {
+		// Skip the header
+		if index == 0 {
+			return
+		}
+
+		// Process columns
+		cols := row.Find("td")
+		if cols.Length() == 2 {
+			columnVal := cols.Eq(1).Text()
+
+			// Only append the actual column values
+			data.cols = append(data.cols, strings.TrimSpace(columnVal))
+		}
+	})
+
+	// Get average time (stored in the last scorecard table)
+	table = doc.Find("table.scorecard_table").Eq(-1)
+	if table.Length() == 0 {
+		return rawLifetimeRow{}, fmt.Errorf(
+			"finding last scorecard table for UID %d", uid,
+		)
+	}
+
+	timeRow := table.Find("tbody tr td").Last()
+	data.cols = append(data.cols, strings.TrimSpace(timeRow.Text()))
+
+	return data, nil
+}
+
+// Adapts [rawLifetimeRow] into [lifetimeRow]
+func (r rawLifetimeRow) Lifetime() (lifetimeRow, error) {
+	expectedCols := 7
+	if len(r.cols) != expectedCols {
+		return lifetimeRow{}, fmt.Errorf(
+			"expected %d columns, got %d", expectedCols, len(r.cols),
+		)
+	}
+
+	return lifetimeRow{
+		memberSince: r.cols[0],
+		totalPoints: r.cols[1],
+		attempted:   r.cols[2],
+		solved:      r.cols[3],
+		successRate: r.cols[4],
+		avgPoints:   r.cols[5],
+		avgTime:     r.cols[6],
+	}, nil
 }

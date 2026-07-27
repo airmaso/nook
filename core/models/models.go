@@ -23,6 +23,17 @@ func (lb Leaderboard) String() string {
 	}
 }
 
+func ParseLeaderboard(s string) (Leaderboard, error) {
+	switch s {
+	case "monthly":
+		return MonthlyLeaderboard, nil
+	case "global":
+		return GlobalLeaderboard, nil
+	default:
+		return 0, fmt.Errorf("unknown leaderboard %q", s)
+	}
+}
+
 type User struct {
 	UID            int
 	Rank           int
@@ -42,4 +53,33 @@ func (u *User) String() string {
 	totalPoints := fmt.Sprintf("%-15s", fmt.Sprintf("%d pts", u.TotalPoints)) // left-align in 15 chars
 
 	return fmt.Sprintf("%s %s %s", rank, username, totalPoints)
+}
+
+func (u *User) DetailedString() string {
+	lastActive := "never"
+	if !u.LastActive.IsZero() {
+		// lastActive = u.LastActive.Format("2006-01-02 15:04:05")
+		lastActive = u.LastActive.Format("2006-01-02")
+	}
+
+	uid := fmt.Sprintf("UID: %-6d", u.UID)
+	rank := fmt.Sprintf("Rank: %-4d", u.Rank)
+	username := fmt.Sprintf("@%-25s", u.Username)
+	last := fmt.Sprintf("LastActive: %-11s", lastActive)
+
+	fraction := fmt.Sprintf("%d/%d", u.Solved, u.Attempted)
+	solved := fmt.Sprintf("Solved: %-12s", fraction)
+
+	rateString := fmt.Sprintf("(%.2f%%)", u.AcceptanceRate)
+	rate := fmt.Sprintf("%-10s", rateString)
+
+	avgTimeStr := fmt.Sprintf("%.2fs", u.AverageTime)
+	avgTime := fmt.Sprintf("AvgTime: %-9s", avgTimeStr)
+	avgPts := fmt.Sprintf("AvgPts: %-8.2f", u.AveragePoints)
+	total := fmt.Sprintf("TotalPoints: %-6d", u.TotalPoints)
+
+	return fmt.Sprintf(
+		"User{%s %s %s %s %s %s %s %s %s}",
+		uid, rank, username, last, solved, rate, avgTime, avgPts, total,
+	)
 }
