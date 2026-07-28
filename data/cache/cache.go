@@ -10,9 +10,9 @@ import (
 
 // A cached leaderboard
 type CachedLeaderboard struct {
-	prev  []*models.User
-	curr  []*models.User
-	stats *scraper.ScrapeStats
+	Prev  []*models.User
+	Curr  []*models.User
+	Stats *scraper.ScrapeStats
 }
 
 // The main interface for the leaderboard cache
@@ -30,74 +30,23 @@ func getCachedLeaderboard(cache *LeaderboardCache, lb models.Leaderboard) (*Cach
 	case models.GlobalLeaderboard:
 		return &cache.globalLeaderboard, nil
 	default:
-		return &CachedLeaderboard{}, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"unknown leaderboard type %q", lb,
 		)
 	}
 }
 
-// Returns the previously fetched users of a leaderboard
-func (cache *LeaderboardCache) GetPrevUsers(lb models.Leaderboard) ([]*models.User, error) {
+// Returns a cached leaderboard
+func (cache *LeaderboardCache) GetCachedLeaderboard(lb models.Leaderboard) (CachedLeaderboard, error) {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 
 	cachedLeaderboard, err := getCachedLeaderboard(cache, lb)
 	if err != nil {
-		return nil, err
+		return CachedLeaderboard{}, err
 	}
 
-	return cachedLeaderboard.prev, nil
-}
-
-// Returns the most recently fetched users of a leaderboard
-func (cache *LeaderboardCache) GetCurrUsers(lb models.Leaderboard) ([]*models.User, error) {
-	cache.mu.RLock()
-	defer cache.mu.RUnlock()
-
-	cachedLeaderboard, err := getCachedLeaderboard(cache, lb)
-	if err != nil {
-		return nil, err
-	}
-
-	return cachedLeaderboard.curr, nil
-}
-
-// Returns the previously fetched users of a leaderboard
-func (cache *LeaderboardCache) GetPrevUser(lb models.Leaderboard, rank int) (*models.User, error) {
-	cache.mu.RLock()
-	defer cache.mu.RUnlock()
-
-	cachedLeaderboard, err := getCachedLeaderboard(cache, lb)
-	if err != nil {
-		return nil, err
-	}
-
-	if rank <= 0 || rank > len(cachedLeaderboard.prev) {
-		return nil, fmt.Errorf(
-			"rank %d not in range [1, %d]", rank, len(cachedLeaderboard.prev),
-		)
-	}
-
-	return cachedLeaderboard.prev[rank-1], nil
-}
-
-// Returns a specific user from the most recently fetched users of a leaderboard
-func (cache *LeaderboardCache) GetCurrUser(lb models.Leaderboard, rank int) (*models.User, error) {
-	cache.mu.RLock()
-	defer cache.mu.RUnlock()
-
-	cachedLeaderboard, err := getCachedLeaderboard(cache, lb)
-	if err != nil {
-		return nil, err
-	}
-
-	if rank <= 0 || rank > len(cachedLeaderboard.curr) {
-		return nil, fmt.Errorf(
-			"rank %d not in range [1, %d]", rank, len(cachedLeaderboard.curr),
-		)
-	}
-
-	return cachedLeaderboard.curr[rank-1], nil
+	return *cachedLeaderboard, nil
 }
 
 // Refreshes a cached leaderboard
@@ -119,9 +68,9 @@ func (cache *LeaderboardCache) Refresh(lb models.Leaderboard) error {
 		return err
 	}
 
-	cachedLeaderboard.prev = cachedLeaderboard.curr
-	cachedLeaderboard.curr = users
-	cachedLeaderboard.stats = stats
+	cachedLeaderboard.Prev = cachedLeaderboard.Curr
+	cachedLeaderboard.Curr = users
+	cachedLeaderboard.Stats = stats
 
 	return nil
 }
