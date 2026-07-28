@@ -58,6 +58,23 @@ func (cache *LeaderboardCache) LaunchRefresher(ctx context.Context, interval tim
 	}()
 }
 
+// Refreshes a cached leaderboard with retry logic
+func (cache *LeaderboardCache) refreshWithRetry(refresh func() error, attempts int, backoff time.Duration) error {
+	var err error
+	for i := range attempts {
+		if err = refresh(); err == nil {
+			return nil
+		}
+
+		// Simple linear backoff between refresh attempts
+		if i < attempts - 1 {
+			time.Sleep(backoff * time.Duration(i + 1))
+		}
+	}
+
+	return err
+}
+
 // Refreshes both leaderboards
 func (cache *LeaderboardCache) refreshAll() error {
 	var wg sync.WaitGroup
@@ -69,8 +86,11 @@ func (cache *LeaderboardCache) refreshAll() error {
 	// Refresh both leaderboards concurrently
 	for _, lb := range leaderboards {
 		wg.Go(func() {
-			if err := cache.Refresh(lb); err != nil {
-				slog.Error("refresh failed", "leaderboard", lb.String(), "error", err)
+			// Attempt to refresh 3 times with a 10 second backoff on each attempt
+			err := cache.refreshWithRetry(func() error { return cache.Refresh(lb) }, 3, 10 * time.Second,)
+
+			if err != nil {
+				slog.Error("refresh failed after retries", "leaderboard", lb.String(), "error", err)
 
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("%s: %w", lb, err))
