@@ -2,6 +2,8 @@ package cache
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -18,6 +20,7 @@ func ParseRefreshInterval() time.Duration {
 	const defaultInterval = 2 * time.Minute
 
 	raw := os.Getenv("REFRESH_INTERVAL")
+	fmt.Println(raw)
 	if raw == "" {
 		return defaultInterval
 	}
@@ -58,6 +61,8 @@ func (cache *LeaderboardCache) LaunchRefresher(ctx context.Context, interval tim
 // Refreshes both leaderboards
 func (cache *LeaderboardCache) refreshAll() error {
 	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errs []error
 
 	leaderboards := []models.Leaderboard{models.MonthlyLeaderboard, models.GlobalLeaderboard}
 
@@ -65,13 +70,15 @@ func (cache *LeaderboardCache) refreshAll() error {
 	for _, lb := range leaderboards {
 		wg.Go(func() {
 			if err := cache.Refresh(lb); err != nil {
-				slog.Error("refresh failed", "leaderboard", "lb", "error", err)
-			}
+				slog.Error("refresh failed", "leaderboard", lb.String(), "error", err)
 
-			// slog.Info("successfuly refreshed", "leaderboard", lb.String())
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("%s: %w", lb, err))
+				mu.Unlock()
+			}
 		})
 	}
 
 	wg.Wait()
-	return nil
+	return errors.Join(errs...)
 }
