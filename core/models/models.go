@@ -23,6 +23,17 @@ func (lb Leaderboard) String() string {
 	}
 }
 
+func (lb Leaderboard) DBKind() string {
+	switch lb {
+	case MonthlyLeaderboard:
+		return "monthly"
+	case GlobalLeaderboard:
+		return "global"
+	default:
+		return fmt.Sprintf("unknown(%d)", int(lb))
+	}
+}
+
 func ParseLeaderboard(s string) (Leaderboard, error) {
 	switch s {
 	case "monthly":

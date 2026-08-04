@@ -11,10 +11,14 @@ import (
 
 	"nook/core/models"
 	"nook/data/cache"
+	"nook/data/store"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type nookServer struct {
 	cache *cache.LeaderboardCache
+	store *store.Store
 }
 
 type GetLeaderboardResponse struct {
@@ -42,6 +46,21 @@ func (ns *nookServer) handleGetLeaderboard(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// Loads the latest two scrapes per leaderboard.
+// Allows a restart to immediately serve real data instead of
+// waiting for the next interval to refresh.
+func warmCache(ctx context.Context, lbCache *cache.LeaderboardCache, st *store.Store) {
+	for _, lb := range []models.Leaderboard{models.MonthlyLeaderboard, models.GlobalLeaderboard} {
+		curr, prev, err := st.LatestTwo(ctx, lb)
+		if err != nil {
+			slog.Error("failed to warm cache from db", "leaderboard", lb.String(), "error", err)
+			continue
+		}
+
+		lbCache.Seed(lb, curr, prev)
+	}
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
@@ -50,11 +69,29 @@ func main() {
 	)
 	defer stop()
 
+	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		slog.Error("failed to connect to postgres", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	st := store.New(pool)
 	lbCache := &cache.LeaderboardCache{}
+
+	lbCache.OnRefreshed = func(lb models.Leaderboard, curr []*models.User) {
+		if err := st.SaveScrape(ctx, lb, curr); err != nil {
+			// Peristent failure shouldn't affect live serving
+			slog.Error("failed to persist scrape", "leaderboard", lb.String(), "error", err)
+		}
+	}
+
+	warmCache(ctx, lbCache, st)
+
 	interval := cache.ParseRefreshInterval()
 	lbCache.LaunchRefresher(ctx, interval)
 
-	ns := &nookServer{cache: lbCache}
+	ns := &nookServer{cache: lbCache, store: st}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /leaderboard/{kind}", ns.handleGetLeaderboard)

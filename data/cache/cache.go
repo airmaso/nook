@@ -20,6 +20,7 @@ type LeaderboardCache struct {
 	mu                 sync.RWMutex
 	monthlyLeaderboard CachedLeaderboard
 	globalLeaderboard  CachedLeaderboard
+	OnRefreshed        func(lb models.Leaderboard, curr []*models.User)
 }
 
 // Helper that returns a reference to a cached leaderboard
@@ -73,4 +74,19 @@ func (cache *LeaderboardCache) Refresh(lb models.Leaderboard) error {
 	cachedLeaderboard.Stats = stats
 
 	return nil
+}
+
+// Seeds the initial in-memory state for a leaderboard
+func (cache *LeaderboardCache) Seed(lb models.Leaderboard, curr, prev []*models.User) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	cachedLeaderboard, err := getCachedLeaderboard(cache, lb)
+	if err != nil {
+		return
+	}
+
+	// Store the passed data into the cache
+	cachedLeaderboard.Prev = prev
+	cachedLeaderboard.Curr = curr
 }

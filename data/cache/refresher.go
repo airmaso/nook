@@ -20,7 +20,7 @@ func ParseRefreshInterval() time.Duration {
 	const defaultInterval = 2 * time.Minute
 
 	raw := os.Getenv("REFRESH_INTERVAL")
-	fmt.Println(raw)
+	// fmt.Println(raw)
 	if raw == "" {
 		return defaultInterval
 	}
@@ -95,6 +95,16 @@ func (cache *LeaderboardCache) refreshAll() error {
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("%s: %w", lb, err))
 				mu.Unlock()
+				return
+			}
+
+			if cache.OnRefreshed != nil {
+				snapshot, snapErr := cache.GetCachedLeaderboard(lb)
+				if snapErr != nil {
+					slog.Error("failed to read back cache after refresh",
+					"leaderboard", lb.String(), "error", snapErr)
+				}
+				cache.OnRefreshed(lb, snapshot.Curr)
 			}
 		})
 	}
