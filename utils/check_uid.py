@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from data.scraper import PLAYER_URL
 
 if __name__ == "__main__":
-    lower_bound = 10_839
+    lower_bound = 10_866
     upper_bound = 10_888
 
     for uid in range(lower_bound, upper_bound + 1):
